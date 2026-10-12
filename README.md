@@ -43,3 +43,7 @@ This is an implemented development application, not a certified or launch-approv
 The temporary development email is `dediguelaclauda@gmail.com`; the development telephone is `+27 63 240 0693`. There is no approved WhatsApp number, so that action leads to contact details rather than an invented recipient.
 
 See [production configuration](docs/production.md), [requirements and factual constraints](docs/requirements.md), and [validation results](docs/validation.md). Secure runtime credentials must be entered through the deployment secret manager, never committed or pasted into chat.
+
+## Vercel deployment
+
+Marketing pages can run without the local SQLite adapter. Set `BLIES_STORAGE_MODE=disabled` on Vercel; private operations fail closed with honest unavailable states. See [Vercel deployment steps and infrastructure boundary](docs/vercel.md). Persistent Node hosts retain the SQLite architecture.

@@ -1,3 +1,4 @@
+import { persistentStorageEnabled } from "@/lib/storage-policy";
 import { ProductCategories } from "@/components/product-categories";
 import Image from "next/image";
 import { publicLocations } from "@/lib/public-content";
@@ -9,8 +10,8 @@ import { ui, t, type Locale } from "@/lib/i18n";
 import { Quote, Tracking } from "@/components/quote";
 import { CTA } from "@/components/home";
 import { Network, Journey } from "@/components/navigator";
-import { uploadsReady } from "@/lib/enquiries";
-import { published } from "@/lib/store";
+import { uploadsReady } from "@/lib/capabilities";
+import { published } from "@/lib/public-store";
 import { metadataFor } from "@/lib/seo";
 function title(slug: string, l: Locale) {
   return (
@@ -40,7 +41,7 @@ export async function generateMetadata({
       : base?.group === "industries"
         ? "industry"
         : "service";
-  const override = published(kind, key)[0]?.data;
+  const override = (await published(kind, key))[0]?.data;
   return metadataFor(
     locale,
     key,
@@ -78,6 +79,7 @@ export default async function Page({
           initialService={(await searchParams).service || ""}
           initialCategory={(await searchParams).category || ""}
           uploads={uploadsReady()}
+          backendAvailable={persistentStorageEnabled()}
         />
       </div>
     );
@@ -90,11 +92,11 @@ export default async function Page({
           <h1>{ui.track[l]}</h1>
           <p>{ui.trackingIntro[l]}</p>
         </section>
-        <Tracking locale={l} />
+        <Tracking locale={l} backendAvailable={persistentStorageEnabled()} />
       </div>
     );
   if (slug === "contact") {
-    const settings = published("settings")[0]?.data;
+    const settings = (await published("settings"))[0]?.data;
     return (
       <>
         <div className="page-wrap">
@@ -169,7 +171,7 @@ export default async function Page({
               ))}
             </section>
           </div>
-          <Network locale={l} locationsData={publicLocations()} />
+          <Network locale={l} locationsData={await publicLocations()} />
         </div>
         <CTA locale={l} />
       </>
@@ -209,7 +211,7 @@ export default async function Page({
               <ArrowUpRight />
             </Link>
           ))}
-          {published("article").map((a) => (
+          {(await published("article")).map((a) => (
             <Link key={a.id as string} href={`/${l}/${a.slug}`}>
               <p className="eyebrow">{a.data.category?.[l]}</p>
               <h2>{a.data.title[l]}</h2>
@@ -283,7 +285,7 @@ export default async function Page({
       : base?.group === "industries"
         ? "industry"
         : "service";
-  const override = published(kind, slug)[0]?.data;
+  const override = (await published(kind, slug))[0]?.data;
   const page = override
     ? {
         slug,
@@ -358,7 +360,7 @@ export default async function Page({
         {slug === "fleet" && (
           <section className="fleet-public">
             <p>{ui.noFleet[l]}</p>
-            {published("fleet").map((f) => (
+            {(await published("fleet")).map((f) => (
               <Link
                 className="fleet-card"
                 key={f.id as string}

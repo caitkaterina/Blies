@@ -1,4 +1,4 @@
-import { published } from "@/lib/store";
+import { published } from "@/lib/public-store";
 import { siteUrl } from "@/lib/seo";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
@@ -16,7 +16,7 @@ export default async function Layout({
   const { locale } = await params;
   if (!locales.includes(locale as Locale)) notFound();
   const l = locale as Locale;
-  const contact = published("settings")[0]?.data;
+  const contact = (await published("settings"))[0]?.data;
   const nonce = (await headers()).get("x-nonce") || undefined;
   return (
     <html

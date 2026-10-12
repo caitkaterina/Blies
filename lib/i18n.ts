@@ -7,6 +7,11 @@ export const t = (en: string, fr: string, ar: string): Localized => ({
   ar,
 });
 export const ui = {
+  backendUnavailable: t(
+    "Online requests are temporarily unavailable because secure backend services are not connected. No enquiry has been accepted. Please use the Contact page.",
+    "Les demandes en ligne sont temporairement indisponibles : les services sécurisés ne sont pas connectés. Aucune demande n’a été acceptée. Veuillez utiliser la page Contact.",
+    "الطلبات عبر الإنترنت غير متاحة مؤقتًا لأن خدمات الخلفية الآمنة غير متصلة. لم يتم قبول أي استفسار. يرجى استخدام صفحة التواصل.",
+  ),
   home: t("Home", "Accueil", "الرئيسية"),
   procurement: t("Procurement", "Approvisionnement", "المشتريات"),
   logistics: t("Logistics", "Logistique", "الخدمات اللوجستية"),

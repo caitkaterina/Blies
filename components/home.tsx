@@ -43,7 +43,7 @@ export function CTA({ locale: l }: { locale: Locale }) {
     </section>
   );
 }
-export function Home({ locale: l }: { locale: Locale }) {
+export async function Home({ locale: l }: { locale: Locale }) {
   const pillars = [
     {
       icon: PackageSearch,
@@ -176,7 +176,7 @@ export function Home({ locale: l }: { locale: Locale }) {
       </section>
       <ServiceNavigator locale={l} />
       <Journey locale={l} />
-      <Network locale={l} locationsData={publicLocations()} />
+      <Network locale={l} locationsData={await publicLocations()} />
       <section className="fleet-feature section">
         <div className="fleet-graphic" aria-hidden="true">
           <Truck strokeWidth={0.65} />

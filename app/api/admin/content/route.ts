@@ -1,3 +1,4 @@
+import { backendRequest } from "@/lib/backend";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { authorise } from "@/lib/auth";
@@ -76,7 +77,7 @@ const schema = z
           "Only verified content and confirmed owned fleet can be published",
       });
   });
-export async function GET(req: Request) {
+async function getHandler(req: Request) {
   if (!(await authorise(req, ["admin", "editor"])))
     return Response.json({ error: "Forbidden" }, { status: 403 });
   return Response.json({
@@ -92,7 +93,7 @@ export async function GET(req: Request) {
       .all(),
   });
 }
-export async function POST(req: Request) {
+async function postHandler(req: Request) {
   const s = await authorise(req, ["admin", "editor"], true);
   if (!s) return Response.json({ error: "Forbidden" }, { status: 403 });
   let raw;
@@ -152,4 +153,12 @@ export async function POST(req: Request) {
       { status: 409 },
     );
   }
+}
+
+export async function GET(request: Request) {
+  return backendRequest(() => getHandler(request));
+}
+
+export async function POST(request: Request) {
+  return backendRequest(() => postHandler(request));
 }

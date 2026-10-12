@@ -15,11 +15,13 @@ export function Quote({
   initialService,
   initialCategory,
   uploads,
+  backendAvailable = true,
 }: {
   locale: Locale;
   initialService: string;
   initialCategory?: string;
   uploads: boolean;
+  backendAvailable?: boolean;
 }) {
   const [step, setStep] = useState(0),
     [busy, setBusy] = useState(false),
@@ -139,7 +141,13 @@ export function Quote({
       }
       if (request.status === 201) setResult(response);
       else {
-        setError(request.status === 422 ? ui.required[l] : ui.error[l]);
+        setError(
+          request.status === 503
+            ? ui.backendUnavailable[l]
+            : request.status === 422
+              ? ui.required[l]
+              : ui.error[l],
+        );
         if (response.fields) {
           const bad = response.fields[0];
           const index = groups.findIndex((g) => g.includes(bad));
@@ -167,256 +175,272 @@ export function Quote({
       </section>
     );
   return (
-    <div className="quote-layout">
-      <aside className="quote-sidebar">
-        <p className="eyebrow">BLIES / {ui.quote[l]}</p>
-        <h2>{ui.quoteIntro[l]}</h2>
-        <ol>
-          {steps.map((s, i) => (
-            <li key={i} aria-current={step === i ? "step" : undefined}>
-              <span>{i < step ? "✓" : i + 1}</span>
-              {s[l]}
-            </li>
-          ))}
-        </ol>
-        <div className="private-note">
-          <LockKeyhole size={18} />
-          <p>{ui.turnaround[l]}</p>
-        </div>
-      </aside>
-      <form
-        noValidate
-        ref={form}
-        className="quote-form"
-        onInvalid={(e) =>
-          (e.target as HTMLInputElement).setCustomValidity(ui.required[l])
-        }
-        onInput={(e) => (e.target as HTMLInputElement).setCustomValidity?.("")}
-        onSubmit={submit}
-      >
-        <div className="form-heading">
-          <span className="eyebrow">0{step + 1} / 08</span>
-          <h1 id="quote-heading" tabIndex={-1}>
-            {steps[step][l]}
-          </h1>
-        </div>
-        <div className="form-fields">
-          {groups[step].map((key) => (
-            <label
-              key={key}
-              className={
-                ["cargo", "notes", "requirements"].includes(key) ? "full" : ""
-              }
-            >
-              {fields[key as keyof typeof fields][l]}
-              {required.includes(key) && <span aria-hidden="true"> *</span>}
-              {key === "service" ? (
-                <select
-                  required
-                  value={values[key]}
-                  onChange={(e) =>
-                    setValues({ ...values, [key]: e.target.value })
-                  }
-                >
-                  {services.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.title[l]}
-                    </option>
-                  ))}
-                </select>
-              ) : [
-                  "cargo",
-                  "notes",
-                  "requirements",
-                  "crossBorder",
-                  "dangerous",
-                ].includes(key) ? (
-                <textarea
-                  required={required.includes(key)}
-                  maxLength={2000}
-                  value={values[key] || ""}
-                  onChange={(e) =>
-                    setValues({ ...values, [key]: e.target.value })
-                  }
-                />
-              ) : (
-                <input
-                  type={
-                    key === "email"
-                      ? "email"
-                      : key === "phone"
-                        ? "tel"
-                        : key === "date"
-                          ? "date"
-                          : ["quantity", "weight"].includes(key)
-                            ? "number"
-                            : "text"
-                  }
-                  required={required.includes(key)}
-                  min={
-                    key === "date"
-                      ? new Date().toISOString().slice(0, 10)
-                      : ["quantity", "weight"].includes(key)
-                        ? 0.001
-                        : undefined
-                  }
-                  step={
-                    ["quantity", "weight"].includes(key) ? "any" : undefined
-                  }
-                  maxLength={1000}
-                  autoComplete={
-                    key === "email"
-                      ? "email"
-                      : key === "name"
-                        ? "name"
+    <>
+      {!backendAvailable && (
+        <p className="warning" role="status">
+          {ui.backendUnavailable[l]}
+        </p>
+      )}
+      <div className="quote-layout">
+        <aside className="quote-sidebar">
+          <p className="eyebrow">BLIES / {ui.quote[l]}</p>
+          <h2>{ui.quoteIntro[l]}</h2>
+          <ol>
+            {steps.map((s, i) => (
+              <li key={i} aria-current={step === i ? "step" : undefined}>
+                <span>{i < step ? "✓" : i + 1}</span>
+                {s[l]}
+              </li>
+            ))}
+          </ol>
+          <div className="private-note">
+            <LockKeyhole size={18} />
+            <p>{ui.turnaround[l]}</p>
+          </div>
+        </aside>
+        <form
+          noValidate
+          ref={form}
+          className="quote-form"
+          onInvalid={(e) =>
+            (e.target as HTMLInputElement).setCustomValidity(ui.required[l])
+          }
+          onInput={(e) =>
+            (e.target as HTMLInputElement).setCustomValidity?.("")
+          }
+          onSubmit={submit}
+        >
+          <div className="form-heading">
+            <span className="eyebrow">0{step + 1} / 08</span>
+            <h1 id="quote-heading" tabIndex={-1}>
+              {steps[step][l]}
+            </h1>
+          </div>
+          <div className="form-fields">
+            {groups[step].map((key) => (
+              <label
+                key={key}
+                className={
+                  ["cargo", "notes", "requirements"].includes(key) ? "full" : ""
+                }
+              >
+                {fields[key as keyof typeof fields][l]}
+                {required.includes(key) && <span aria-hidden="true"> *</span>}
+                {key === "service" ? (
+                  <select
+                    required
+                    value={values[key]}
+                    onChange={(e) =>
+                      setValues({ ...values, [key]: e.target.value })
+                    }
+                  >
+                    {services.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.title[l]}
+                      </option>
+                    ))}
+                  </select>
+                ) : [
+                    "cargo",
+                    "notes",
+                    "requirements",
+                    "crossBorder",
+                    "dangerous",
+                  ].includes(key) ? (
+                  <textarea
+                    required={required.includes(key)}
+                    maxLength={2000}
+                    value={values[key] || ""}
+                    onChange={(e) =>
+                      setValues({ ...values, [key]: e.target.value })
+                    }
+                  />
+                ) : (
+                  <input
+                    type={
+                      key === "email"
+                        ? "email"
                         : key === "phone"
                           ? "tel"
-                          : key === "company"
-                            ? "organization"
-                            : undefined
-                  }
-                  value={values[key] || ""}
-                  onChange={(e) =>
-                    setValues({ ...values, [key]: e.target.value })
-                  }
-                />
-              )}
-            </label>
-          ))}
-        </div>
-        {step === 6 && (
-          <div className="upload-zone">
-            <Upload size={32} />
-            <p>{uploads ? ui.fileHelp[l] : ui.noUploads[l]}</p>
-            {uploads && (
-              <>
-                <label>
-                  {ui.upload[l]}
-                  <input
-                    type="file"
-                    multiple
-                    accept="application/pdf,image/jpeg,image/png"
-                    onChange={(e) => {
-                      const selected = Array.from(e.target.files || []);
-                      if (
-                        selected.length > 3 ||
-                        selected.some(
-                          (f) =>
-                            f.size > 10 * 1024 * 1024 ||
-                            ![
-                              "application/pdf",
-                              "image/jpeg",
-                              "image/png",
-                            ].includes(f.type),
-                        )
-                      ) {
-                        setError(ui.fileError[l]);
-                        e.target.value = "";
-                        setFiles([]);
-                      } else {
-                        setFiles(selected);
-                        setError("");
-                      }
-                    }}
+                          : key === "date"
+                            ? "date"
+                            : ["quantity", "weight"].includes(key)
+                              ? "number"
+                              : "text"
+                    }
+                    required={required.includes(key)}
+                    min={
+                      key === "date"
+                        ? new Date().toISOString().slice(0, 10)
+                        : ["quantity", "weight"].includes(key)
+                          ? 0.001
+                          : undefined
+                    }
+                    step={
+                      ["quantity", "weight"].includes(key) ? "any" : undefined
+                    }
+                    maxLength={1000}
+                    autoComplete={
+                      key === "email"
+                        ? "email"
+                        : key === "name"
+                          ? "name"
+                          : key === "phone"
+                            ? "tel"
+                            : key === "company"
+                              ? "organization"
+                              : undefined
+                    }
+                    value={values[key] || ""}
+                    onChange={(e) =>
+                      setValues({ ...values, [key]: e.target.value })
+                    }
                   />
-                </label>
-                <ul>
-                  {files.map((f) => (
-                    <li key={f.name}>
-                      {f.name} ({(f.size / 1024).toFixed(0)} KB)
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
+                )}
+              </label>
+            ))}
           </div>
-        )}
-        {step === 7 && (
-          <>
-            <div className="review">
-              {groups.slice(0, 6).map((group, i) => (
-                <section key={i}>
-                  <div>
-                    <h2>{steps[i][l]}</h2>
-                    <button type="button" onClick={() => setStep(i)}>
-                      {ui.edit[l]}
-                    </button>
-                  </div>
-                  <dl>
-                    {group
-                      .filter((k) => values[k])
-                      .map((k) => (
-                        <div key={k}>
-                          <dt>{fields[k as keyof typeof fields][l]}</dt>
-                          <dd
-                            dir={
-                              ["email", "phone"].includes(k) ? "ltr" : undefined
-                            }
-                          >
-                            {k === "service"
-                              ? services.find((s) => s.id === values[k])?.title[
-                                  l
-                                ]
-                              : values[k]}
-                          </dd>
-                        </div>
-                      ))}
-                  </dl>
-                </section>
-              ))}
-              <p>
-                {ui.upload[l]}: {files.length}
-              </p>
+          {step === 6 && (
+            <div className="upload-zone">
+              <Upload size={32} />
+              <p>{uploads ? ui.fileHelp[l] : ui.noUploads[l]}</p>
+              {uploads && (
+                <>
+                  <label>
+                    {ui.upload[l]}
+                    <input
+                      type="file"
+                      multiple
+                      accept="application/pdf,image/jpeg,image/png"
+                      onChange={(e) => {
+                        const selected = Array.from(e.target.files || []);
+                        if (
+                          selected.length > 3 ||
+                          selected.some(
+                            (f) =>
+                              f.size > 10 * 1024 * 1024 ||
+                              ![
+                                "application/pdf",
+                                "image/jpeg",
+                                "image/png",
+                              ].includes(f.type),
+                          )
+                        ) {
+                          setError(ui.fileError[l]);
+                          e.target.value = "";
+                          setFiles([]);
+                        } else {
+                          setFiles(selected);
+                          setError("");
+                        }
+                      }}
+                    />
+                  </label>
+                  <ul>
+                    {files.map((f) => (
+                      <li key={f.name}>
+                        {f.name} ({(f.size / 1024).toFixed(0)} KB)
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={consent}
-                onChange={(e) => setConsent(e.target.checked)}
-                required
-              />
-              {ui.consent[l]}
-            </label>
-          </>
-        )}
-        {error && (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        )}
-        {busy && (
-          <div role="status">
-            <p>
-              {ui.loading[l]} {progress}%
-            </p>
-            <progress value={progress} max={100} />
-          </div>
-        )}
-        <div className="form-actions">
-          {step > 0 && (
-            <button
-              type="button"
-              className="button secondary"
-              disabled={busy}
-              onClick={() => {
-                setStep(step - 1);
-                setError("");
-              }}
-            >
-              <ArrowLeft size={18} />
-              {ui.back[l]}
-            </button>
           )}
-          <button className="button" disabled={busy} type="submit">
-            {busy ? ui.loading[l] : step === 7 ? ui.submit[l] : ui.next[l]}
-            <ArrowRight size={18} />
-          </button>
-        </div>
-      </form>
-    </div>
+          {step === 7 && (
+            <>
+              <div className="review">
+                {groups.slice(0, 6).map((group, i) => (
+                  <section key={i}>
+                    <div>
+                      <h2>{steps[i][l]}</h2>
+                      <button type="button" onClick={() => setStep(i)}>
+                        {ui.edit[l]}
+                      </button>
+                    </div>
+                    <dl>
+                      {group
+                        .filter((k) => values[k])
+                        .map((k) => (
+                          <div key={k}>
+                            <dt>{fields[k as keyof typeof fields][l]}</dt>
+                            <dd
+                              dir={
+                                ["email", "phone"].includes(k)
+                                  ? "ltr"
+                                  : undefined
+                              }
+                            >
+                              {k === "service"
+                                ? services.find((s) => s.id === values[k])
+                                    ?.title[l]
+                                : values[k]}
+                            </dd>
+                          </div>
+                        ))}
+                    </dl>
+                  </section>
+                ))}
+                <p>
+                  {ui.upload[l]}: {files.length}
+                </p>
+              </div>
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={consent}
+                  onChange={(e) => setConsent(e.target.checked)}
+                  required
+                />
+                {ui.consent[l]}
+              </label>
+            </>
+          )}
+          {error && (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          )}
+          {busy && (
+            <div role="status">
+              <p>
+                {ui.loading[l]} {progress}%
+              </p>
+              <progress value={progress} max={100} />
+            </div>
+          )}
+          <div className="form-actions">
+            {step > 0 && (
+              <button
+                type="button"
+                className="button secondary"
+                disabled={busy}
+                onClick={() => {
+                  setStep(step - 1);
+                  setError("");
+                }}
+              >
+                <ArrowLeft size={18} />
+                {ui.back[l]}
+              </button>
+            )}
+            <button className="button" disabled={busy} type="submit">
+              {busy ? ui.loading[l] : step === 7 ? ui.submit[l] : ui.next[l]}
+              <ArrowRight size={18} />
+            </button>
+          </div>
+        </form>
+      </div>
+    </>
   );
 }
-export function Tracking({ locale: l }: { locale: Locale }) {
+export function Tracking({
+  locale: l,
+  backendAvailable = true,
+}: {
+  locale: Locale;
+  backendAvailable?: boolean;
+}) {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [result, setResult] = useState<{
@@ -463,6 +487,10 @@ export function Tracking({ locale: l }: { locale: Locale }) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data),
           });
+          if (r.status === 503) {
+            setError(ui.backendUnavailable[l]);
+            return;
+          }
           if (!r.ok) throw Error();
           setResult(await r.json());
         } catch {
@@ -472,6 +500,11 @@ export function Tracking({ locale: l }: { locale: Locale }) {
         }
       }}
     >
+      {!backendAvailable && (
+        <p className="warning" role="status">
+          {ui.backendUnavailable[l]}
+        </p>
+      )}
       <div className="form-fields">
         {(
           ["shipment", "company", "name", "email", "phone", "notes"] as const

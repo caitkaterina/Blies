@@ -1,3 +1,7 @@
+# Vercel note
+
+For Vercel marketing-only deployment, use `BLIES_STORAGE_MODE=disabled` and follow [Vercel deployment](vercel.md). All persistent-host instructions below remain applicable to the SQLite architecture; they do not connect managed infrastructure to Vercel.
+
 # Production connections and release gates
 
 ## Hosting and data

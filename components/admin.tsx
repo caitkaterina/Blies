@@ -44,6 +44,7 @@ export function Admin({
   csrf,
   role,
   configured,
+  backendAvailable = true,
   initialContent,
   initialRecords,
   initialHistory,
@@ -51,6 +52,7 @@ export function Admin({
   csrf: string;
   role: string;
   configured: boolean;
+  backendAvailable?: boolean;
   initialContent: Entry[];
   initialRecords: RecordEntry[];
   initialHistory: unknown[];
@@ -110,7 +112,12 @@ export function Admin({
         </Link>
         <h1>Administration</h1>
         <p>Staff access only. Password and authenticator code are required.</p>
-        {!configured ? (
+        {!backendAvailable ? (
+          <div className="warning">
+            Private staff services are unavailable until a persistent backend is
+            connected. Administrator access is closed.
+          </div>
+        ) : !configured ? (
           <div className="warning">
             Administrator access is disabled until the email, password hash,
             TOTP secret and session signing secret are configured securely.

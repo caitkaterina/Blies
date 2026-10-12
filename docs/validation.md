@@ -1,3 +1,5 @@
+For the latest Vercel storage fix, see [Vercel validation](vercel-validation.md). The original website validation below is retained as historical evidence.
+
 # Verified validation — 12 October 2026
 
 Environment: Node.js 24.19.0, npm 11.9.0, Next.js 16.4.0. Frozen `npm ci` completed. The final application passed ESLint, TypeScript and `next build`.

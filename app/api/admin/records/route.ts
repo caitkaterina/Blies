@@ -1,9 +1,10 @@
+import { backendRequest } from "@/lib/backend";
 import { z } from "zod";
 import { authorise } from "@/lib/auth";
 import { db, audit } from "@/lib/store";
 import { sendConfirmation, sendReply } from "@/lib/enquiries";
 import { type Locale } from "@/lib/i18n";
-export async function GET(req: Request) {
+async function getHandler(req: Request) {
   if (!(await authorise(req, ["admin", "sales"])))
     return Response.json({ error: "Forbidden" }, { status: 403 });
   return Response.json({
@@ -19,7 +20,7 @@ export async function GET(req: Request) {
       })),
   });
 }
-export async function POST(req: Request) {
+async function postHandler(req: Request) {
   const s = await authorise(req, ["admin", "sales"], true);
   if (!s) return Response.json({ error: "Forbidden" }, { status: 403 });
   let raw;
@@ -85,4 +86,12 @@ export async function POST(req: Request) {
       .run(result, v.id);
   }
   return Response.json({ ok: true });
+}
+
+export async function GET(request: Request) {
+  return backendRequest(() => getHandler(request));
+}
+
+export async function POST(request: Request) {
+  return backendRequest(() => postHandler(request));
 }

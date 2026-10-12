@@ -1,8 +1,9 @@
+import { backendRequest } from "@/lib/backend";
 import { authorise } from "@/lib/auth";
 import { db, dataDir, audit } from "@/lib/store";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-export async function GET(
+async function getHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -29,4 +30,11 @@ export async function GET(
   } catch {
     return Response.json({ error: "Document unavailable" }, { status: 503 });
   }
+}
+
+export async function GET(
+  req: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return backendRequest(() => getHandler(req, context));
 }

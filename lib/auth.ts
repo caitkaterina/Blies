@@ -1,3 +1,4 @@
+import { persistentStorageEnabled } from "./storage-policy";
 import { sameOrigin } from "@/lib/security";
 import "server-only";
 import { cookies } from "next/headers";
@@ -43,6 +44,7 @@ export function accounts(): Account[] {
 }
 export const authReady = () =>
   !!(
+    persistentStorageEnabled() &&
     accounts().length &&
     process.env.BLIES_SESSION_SECRET &&
     process.env.BLIES_SESSION_SECRET.length >= 32

@@ -1,15 +1,15 @@
-import { published } from "@/lib/store";
+import { published } from "@/lib/public-store";
 import { type MetadataRoute } from "next";
 import { pages, articles } from "@/lib/content";
 import { locales } from "@/lib/i18n";
 import { siteUrl } from "@/lib/seo";
 export const dynamic = "force-dynamic";
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const custom = [
-    ...published("service"),
-    ...published("industry"),
-    ...published("fleet"),
-    ...published("article"),
+    ...(await published("service")),
+    ...(await published("industry")),
+    ...(await published("fleet")),
+    ...(await published("article")),
   ].map((row) =>
     row.kind === "article" && !row.slug.startsWith("insights/")
       ? `insights/${row.slug}`

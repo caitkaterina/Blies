@@ -1,15 +1,20 @@
+import { persistentStorageEnabled } from "@/lib/storage-policy";
+import { backendUnavailable } from "@/lib/backend";
+import { backendRequest } from "@/lib/backend";
 import { sameOrigin } from "@/lib/security";
 import { cookies } from "next/headers";
 import { authReady, checkLogin, newSession, signSession } from "@/lib/auth";
 import { rateLimit, audit } from "@/lib/store";
-export async function POST(req: Request) {
+async function postHandler(req: Request) {
+  if (!sameOrigin(req))
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  if (!persistentStorageEnabled()) return backendUnavailable();
   if (!authReady())
     return Response.json(
       { error: "Administrator authentication is not configured" },
       { status: 503 },
     );
-  if (!sameOrigin(req))
-    return Response.json({ error: "Forbidden" }, { status: 403 });
+
   if (!rateLimit("admin-login", 5, 300))
     return Response.json({ error: "Try again later" }, { status: 429 });
   let data;
@@ -35,6 +40,7 @@ export async function POST(req: Request) {
       { status: 401 },
     );
   const s = newSession(data.email);
+  audit(s.user, "auth.login", "admin");
   (await cookies()).set("blies_admin", signSession(s), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -42,6 +48,9 @@ export async function POST(req: Request) {
     maxAge: 3600,
     path: "/",
   });
-  audit(s.user, "auth.login", "admin");
   return Response.json({ ok: true });
+}
+
+export async function POST(request: Request) {
+  return backendRequest(() => postHandler(request));
 }

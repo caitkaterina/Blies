@@ -1,24 +1,38 @@
 import type { ContentData } from "./cms-types";
 import "server-only";
-import { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync } from "node:sqlite";
+import { requirePersistence, StorageUnavailable } from "./storage-policy";
 import { mkdirSync, chmodSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 export const dataDir = process.env.BLIES_DATA_DIR || "/workspace/blies-private";
 let instance: DatabaseSync | undefined;
 export function db() {
+  requirePersistence();
   if (!instance) {
-    mkdirSync(dataDir, { recursive: true, mode: 0o700 });
-    chmodSync(dataDir, 0o700);
-    instance = new DatabaseSync(path.join(dataDir, "blies.sqlite"));
-    chmodSync(path.join(dataDir, "blies.sqlite"), 0o600);
-    instance.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
+    let connection: DatabaseSync | undefined;
+    try {
+      const { DatabaseSync } = process.getBuiltinModule(
+        "node:sqlite",
+      ) as typeof import("node:sqlite");
+      mkdirSync(dataDir, { recursive: true, mode: 0o700 });
+      chmodSync(dataDir, 0o700);
+      connection = new DatabaseSync(path.join(dataDir, "blies.sqlite"));
+      chmodSync(path.join(dataDir, "blies.sqlite"), 0o600);
+      connection.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
 CREATE TABLE IF NOT EXISTS enquiries(id TEXT PRIMARY KEY, kind TEXT NOT NULL, created TEXT NOT NULL, status TEXT NOT NULL, queue TEXT NOT NULL, email_status TEXT NOT NULL, data TEXT NOT NULL, assigned TEXT NOT NULL DEFAULT '', reply TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS documents(id TEXT PRIMARY KEY,enquiry TEXT NOT NULL REFERENCES enquiries(id),name TEXT NOT NULL,type TEXT NOT NULL,file TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS content(id TEXT PRIMARY KEY,kind TEXT NOT NULL,slug TEXT NOT NULL,status TEXT NOT NULL,position INTEGER NOT NULL,data TEXT NOT NULL,updated TEXT NOT NULL, UNIQUE(kind,slug));
 CREATE TABLE IF NOT EXISTS versions(id TEXT PRIMARY KEY,content_id TEXT NOT NULL,data TEXT NOT NULL,actor TEXT NOT NULL,created TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS audit(id TEXT PRIMARY KEY,actor TEXT NOT NULL,event TEXT NOT NULL,target TEXT NOT NULL,created TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS limits(key TEXT PRIMARY KEY,count INTEGER NOT NULL,expires INTEGER NOT NULL);`);
+      instance = connection;
+    } catch {
+      try {
+        connection?.close();
+      } catch {}
+      throw new StorageUnavailable();
+    }
   }
   return instance;
 }

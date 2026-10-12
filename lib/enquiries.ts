@@ -1,3 +1,5 @@
+import { requirePersistence } from "./storage-policy";
+import { uploadsReady } from "./capabilities";
 import { sameOrigin } from "@/lib/security";
 import "server-only";
 import { randomUUID, createHash } from "node:crypto";
@@ -11,12 +13,6 @@ import {
   trackingSchema,
 } from "./validation";
 import { ui, type Locale } from "./i18n";
-export const uploadsReady = () =>
-  !!(
-    process.env.BLIES_SCAN_URL &&
-    process.env.BLIES_SCAN_KEY &&
-    process.env.BLIES_SCAN_URL.startsWith("https://")
-  );
 export function error(message: string, status = 400) {
   return Response.json({ error: message }, { status });
 }
@@ -81,6 +77,7 @@ export async function sendReply(
 }
 export async function receive(req: Request, kind: "quote" | "tracking") {
   if (!sameOrigin(req)) return error("Origin not allowed", 403);
+  requirePersistence();
   // Avoid trusting arbitrary X-Forwarded-For. Deploy behind a gateway that supplies a trusted identity.
   const identity =
     process.env.BLIES_TRUST_PROXY === "true"
