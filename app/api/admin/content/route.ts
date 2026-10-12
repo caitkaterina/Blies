@@ -1,0 +1,155 @@
+import { z } from "zod";
+import { randomUUID } from "node:crypto";
+import { authorise } from "@/lib/auth";
+import { db, audit } from "@/lib/store";
+const translation = z.object({
+  en: z.string().min(1).max(12000),
+  fr: z.string().min(1).max(12000),
+  ar: z.string().min(1).max(12000),
+});
+const schema = z
+  .object({
+    id: z.string().optional(),
+    kind: z.enum([
+      "service",
+      "industry",
+      "fleet",
+      "location",
+      "article",
+      "settings",
+    ]),
+    slug: z
+      .string()
+      .regex(/^[a-z0-9]+(?:[/-][a-z0-9]+)*$/)
+      .max(120),
+    status: z.enum(["draft", "published", "archived"]),
+    position: z.number().int().min(0).max(10000),
+    data: z.object({
+      title: translation,
+      intro: translation,
+      points: z.array(translation).max(20).default([]),
+      verified: z.boolean(),
+      x: z.number().min(0).max(100).optional(),
+      y: z.number().min(0).max(100).optional(),
+      owned: z.boolean().optional(),
+      planned: z.boolean().optional(),
+      specifications: z.string().max(5000).optional(),
+      imageUrl: z
+        .union([z.literal(""), z.url().refine((v) => v.startsWith("https://"))])
+        .optional(),
+      videoUrl: z
+        .union([z.literal(""), z.url().refine((v) => v.startsWith("https://"))])
+        .optional(),
+      certifications: z.string().max(5000).optional(),
+      tracking: z.boolean().optional(),
+      author: z.string().max(200).optional(),
+      publicationDate: z.string().max(10).optional(),
+      category: translation.optional(),
+      metaDescription: translation.optional(),
+      locationRole: z
+        .enum(["base", "operating", "sourcing", "destination", "coverage"])
+        .optional(),
+      phone: z
+        .string()
+        .regex(/^\+?[0-9\s().-]{8,30}$/)
+        .optional(),
+      corporateEmail: z.union([z.literal(""), z.email()]).optional(),
+      salesEmail: z.union([z.literal(""), z.email()]).optional(),
+      procurementEmail: z.union([z.literal(""), z.email()]).optional(),
+      logisticsEmail: z.union([z.literal(""), z.email()]).optional(),
+      quotationsEmail: z.union([z.literal(""), z.email()]).optional(),
+      whatsapp: z
+        .string()
+        .regex(/^\+?\d{8,15}$/)
+        .optional(),
+    }),
+  })
+  .superRefine((v, c) => {
+    if (
+      v.status === "published" &&
+      (!v.data.verified ||
+        (v.kind === "fleet" && (!v.data.owned || v.data.planned)))
+    )
+      c.addIssue({
+        code: "custom",
+        message:
+          "Only verified content and confirmed owned fleet can be published",
+      });
+  });
+export async function GET(req: Request) {
+  if (!(await authorise(req, ["admin", "editor"])))
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  return Response.json({
+    content: db()
+      .prepare("SELECT * FROM content ORDER BY position,updated DESC")
+      .all()
+      .map((r) => ({ ...r, data: JSON.parse(r.data as string) })),
+    versions: db()
+      .prepare("SELECT * FROM versions ORDER BY created DESC LIMIT 100")
+      .all(),
+    audit: db()
+      .prepare("SELECT * FROM audit ORDER BY created DESC LIMIT 100")
+      .all(),
+  });
+}
+export async function POST(req: Request) {
+  const s = await authorise(req, ["admin", "editor"], true);
+  if (!s) return Response.json({ error: "Forbidden" }, { status: 403 });
+  let raw;
+  try {
+    const body = await req.text();
+    if (body.length > 100000) throw Error();
+    raw = JSON.parse(body);
+  } catch {
+    return Response.json({ error: "Invalid request" }, { status: 400 });
+  }
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success)
+    return Response.json(
+      { error: "Invalid content", issues: parsed.error.issues },
+      { status: 422 },
+    );
+  if (
+    parsed.data.kind === "article" &&
+    !parsed.data.slug.startsWith("insights/")
+  )
+    parsed.data.slug = `insights/${parsed.data.slug}`;
+  if (parsed.data.kind === "fleet" && !parsed.data.slug.startsWith("fleet/"))
+    parsed.data.slug = `fleet/${parsed.data.slug}`;
+  const v = parsed.data,
+    id = v.id || randomUUID(),
+    now = new Date().toISOString();
+  const d = db();
+  try {
+    d.exec("BEGIN");
+    const previous = d.prepare("SELECT * FROM content WHERE id=?").get(id);
+    if (previous)
+      d.prepare("INSERT INTO versions VALUES (?,?,?,?,?)").run(
+        randomUUID(),
+        id,
+        JSON.stringify(previous),
+        s.user,
+        now,
+      );
+    d.prepare(
+      "INSERT INTO content VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET kind=excluded.kind,slug=excluded.slug,status=excluded.status,position=excluded.position,data=excluded.data,updated=excluded.updated",
+    ).run(
+      id,
+      v.kind,
+      v.slug,
+      v.status,
+      v.position,
+      JSON.stringify(v.data),
+      now,
+    );
+    audit(s.user, "content.saved", id);
+    d.exec("COMMIT");
+    return Response.json({ id });
+  } catch {
+    d.exec("ROLLBACK");
+    return Response.json(
+      { error: "Could not save; check for duplicate slugs" },
+      { status: 409 },
+    );
+  }
+}

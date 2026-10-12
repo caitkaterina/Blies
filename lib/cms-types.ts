@@ -1,0 +1,28 @@
+import type { Localized } from "./i18n";
+export type ContentData = {
+  title: Localized;
+  intro: Localized;
+  points: Localized[];
+  verified: boolean;
+  category?: Localized;
+  metaDescription?: Localized;
+  x?: number;
+  y?: number;
+  owned?: boolean;
+  planned?: boolean;
+  specifications?: string;
+  tracking?: boolean;
+  imageUrl?: string;
+  videoUrl?: string;
+  certifications?: string;
+  author?: string;
+  publicationDate?: string;
+  locationRole?: string;
+  corporateEmail?: string;
+  phone?: string;
+  salesEmail?: string;
+  procurementEmail?: string;
+  logisticsEmail?: string;
+  quotationsEmail?: string;
+  whatsapp?: string;
+};

@@ -1,2 +1,0 @@
-import Link from 'next/link';
-export default function Home(){return <><header><strong>BLIES</strong></header><main><p>PROCUREMENT · LOGISTICS · FLEET</p><h1>Connecting supply with possibility.</h1><p>Explore the BLIES service areas. Detailed content and operational claims await confirmation against the original website brief.</p><nav><Link href="/procurement">Procurement</Link><Link href="/logistics">Logistics</Link><Link href="/fleet">Fleet</Link><Link href="/trust">Trust Centre</Link></nav></main></>}
