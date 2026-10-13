@@ -28,3 +28,19 @@ test("persistent host retains SQLite capability while disabled and unknown modes
     false,
   );
 });
+
+test("Supabase production mode requires both server settings and never falls back to SQLite", () => {
+  assert.equal(
+    persistentStorageEnabled({ VERCEL: "1", BLIES_STORAGE_MODE: "supabase" }),
+    false,
+  );
+  assert.equal(
+    persistentStorageEnabled({
+      VERCEL: "1",
+      BLIES_STORAGE_MODE: "supabase",
+      BLIES_SUPABASE_URL: "https://test.supabase.co",
+      BLIES_SUPABASE_SERVICE_ROLE_KEY: "test-only",
+    }),
+    true,
+  );
+});

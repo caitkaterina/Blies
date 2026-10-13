@@ -1,23 +1,20 @@
 import { backendRequest } from "@/lib/backend";
 import { z } from "zod";
 import { authorise } from "@/lib/auth";
-import { db, audit } from "@/lib/store";
+import {
+  records,
+  record,
+  updateRecord,
+  setEmailStatus,
+  audit,
+} from "@/lib/persistence";
 import { sendConfirmation, sendReply } from "@/lib/enquiries";
 import { type Locale } from "@/lib/i18n";
 async function getHandler(req: Request) {
   if (!(await authorise(req, ["admin", "sales"])))
     return Response.json({ error: "Forbidden" }, { status: 403 });
   return Response.json({
-    records: db()
-      .prepare("SELECT * FROM enquiries ORDER BY created DESC LIMIT 200")
-      .all()
-      .map((r) => ({
-        ...r,
-        data: JSON.parse(r.data as string),
-        documents: db()
-          .prepare("SELECT id,name,type FROM documents WHERE enquiry=?")
-          .all(r.id as string),
-      })),
+    records: await records(),
   });
 }
 async function postHandler(req: Request) {
@@ -42,7 +39,7 @@ async function postHandler(req: Request) {
   if (!parsed.success)
     return Response.json({ error: "Invalid record" }, { status: 422 });
   const v = parsed.data;
-  const row = db().prepare("SELECT data FROM enquiries WHERE id=?").get(v.id);
+  const row = await record(v.id);
   if (!row) return Response.json({ error: "Not found" }, { status: 404 });
   if (v.sendReply) {
     if (!v.reply.trim())
@@ -50,7 +47,7 @@ async function postHandler(req: Request) {
         { error: "Enter a response first" },
         { status: 422 },
       );
-    const data = JSON.parse(row.data as string);
+    const data = row.data;
     const result = await sendReply(
       data.email,
       data.locale as Locale,
@@ -68,22 +65,17 @@ async function postHandler(req: Request) {
         { status: 503 },
       );
     v.status = "responded";
-    audit(s.user, "enquiry.response-sent", v.id);
+    await audit(s.user, "enquiry.response-sent", v.id);
   }
-  db()
-    .prepare("UPDATE enquiries SET status=?,assigned=?,reply=? WHERE id=?")
-    .run(v.status, v.assigned, v.reply, v.id);
-  audit(s.user, "enquiry.updated", v.id);
+  await updateRecord(s.user, v);
   if (v.retryEmail) {
-    const data = JSON.parse(row.data as string);
+    const data = row.data;
     const result = await sendConfirmation(
       data.email,
       data.locale as Locale,
       v.id,
     );
-    db()
-      .prepare("UPDATE enquiries SET email_status=? WHERE id=?")
-      .run(result, v.id);
+    await setEmailStatus(v.id, result);
   }
   return Response.json({ ok: true });
 }

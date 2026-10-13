@@ -100,3 +100,13 @@ export function fileType(bytes: Uint8Array): string | null {
   return null;
 }
 export const allowedTypes = ["application/pdf", "image/jpeg", "image/png"];
+
+export const contactSchema = z.object({
+  locale: z.enum(["en", "fr", "ar"]),
+  name: text,
+  email: z.email().max(254),
+  company: optional,
+  message: z.string().trim().min(1).max(5000),
+  consent: z.literal(true),
+  website: z.string().max(0).default(""),
+});

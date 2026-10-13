@@ -47,3 +47,7 @@ See [production configuration](docs/production.md), [requirements and factual co
 ## Vercel deployment
 
 Marketing pages can run without the local SQLite adapter. Set `BLIES_STORAGE_MODE=disabled` on Vercel; private operations fail closed with honest unavailable states. See [Vercel deployment steps and infrastructure boundary](docs/vercel.md). Persistent Node hosts retain the SQLite architecture.
+
+## Managed backend preparation
+
+The optional Supabase adapter, private Storage integration and version-controlled migration are documented in [Supabase activation and validation](docs/supabase.md). Use `BLIES_STORAGE_MODE=supabase` only after staging configuration and migration review; SQLite development and Vercel's fail-closed disabled mode remain available. No production project is connected automatically.

@@ -3,42 +3,19 @@ import {
   StorageUnavailable,
 } from "@/lib/storage-policy";
 import { session, authReady } from "@/lib/auth";
-import { db } from "@/lib/store";
+import { contentState, records as listRecords } from "@/lib/persistence";
 import { Admin, type Entry, type RecordEntry } from "@/components/admin";
 export const dynamic = "force-dynamic";
 async function renderAdmin() {
   const s = await session();
-  const content =
+  const state =
     s && s.role !== "sales"
-      ? (db()
-          .prepare("SELECT * FROM content ORDER BY position,updated DESC")
-          .all()
-          .map((r) => ({
-            ...r,
-            data: JSON.parse(r.data as string),
-          })) as Entry[])
-      : [];
+      ? await contentState()
+      : { content: [], versions: [], audit: [] };
+  const content = state.content as Entry[];
   const records =
-    s && s.role !== "editor"
-      ? (db()
-          .prepare("SELECT * FROM enquiries ORDER BY created DESC LIMIT 200")
-          .all()
-          .map((r) => ({
-            ...r,
-            data: JSON.parse(r.data as string),
-            documents: db()
-              .prepare("SELECT id,name FROM documents WHERE enquiry=?")
-              .all(r.id as string)
-              .map((d) => ({ ...d })),
-          })) as RecordEntry[])
-      : [];
-  const history =
-    s && s.role !== "sales"
-      ? db()
-          .prepare("SELECT * FROM versions ORDER BY created DESC LIMIT 100")
-          .all()
-          .map((v) => ({ ...v }))
-      : [];
+    s && s.role !== "editor" ? ((await listRecords()) as RecordEntry[]) : [];
+  const history = state.versions;
   return (
     <Admin
       csrf={s?.csrf || ""}

@@ -1,17 +1,19 @@
 import { requirePersistence } from "./storage-policy";
 import { uploadsReady } from "./capabilities";
-import { sameOrigin } from "@/lib/security";
+import { publicOrigin } from "@/lib/security";
 import "server-only";
 import { randomUUID, createHash } from "node:crypto";
-import { mkdir, writeFile, unlink } from "node:fs/promises";
 import path from "node:path";
-import { db, dataDir, rateLimit, audit } from "./store";
+import { rateLimit, createEnquiry, setEmailStatus } from "./persistence";
+import { putFile, removeFile } from "./private-files";
 import {
   allowedTypes,
   fileType,
   quoteSchema,
   trackingSchema,
+  contactSchema,
 } from "./validation";
+import { boundedBody, BodyTooLarge } from "./request-body";
 import { ui, type Locale } from "./i18n";
 export function error(message: string, status = 400) {
   return Response.json({ error: message }, { status });
@@ -75,23 +77,39 @@ export async function sendReply(
     return "pending";
   }
 }
-export async function receive(req: Request, kind: "quote" | "tracking") {
-  if (!sameOrigin(req)) return error("Origin not allowed", 403);
+export async function receive(
+  req: Request,
+  kind: "quote" | "tracking" | "contact",
+) {
+  if (!publicOrigin(req)) return error("Origin not allowed", 403);
   requirePersistence();
   // Avoid trusting arbitrary X-Forwarded-For. Deploy behind a gateway that supplies a trusted identity.
   const identity =
     process.env.BLIES_TRUST_PROXY === "true"
       ? req.headers.get("x-real-ip") || "unknown"
       : "shared";
-  if (!rateLimit(`public:${identity}`, 20, 600))
+  if (!(await rateLimit(`public:${identity}`, 20, 600)))
     return error("Too many requests", 429);
-  if (Number(req.headers.get("content-length") || 0) > 31 * 1024 * 1024)
+  if (
+    Number(req.headers.get("content-length") || 0) >
+    (process.env.BLIES_STORAGE_MODE === "supabase" ? 3 : 31) * 1024 * 1024
+  )
     return error("Request too large", 413);
   let data: Record<string, unknown>;
   let files: File[] = [];
   try {
+    const bytes = await boundedBody(
+      req,
+      kind === "quote"
+        ? (process.env.BLIES_STORAGE_MODE === "supabase" ? 3 : 31) * 1024 * 1024
+        : 20000,
+    );
     if (kind === "quote") {
-      const form = await req.formData();
+      const form = await new Request(req.url, {
+        method: "POST",
+        headers: req.headers,
+        body: bytes,
+      }).formData();
       const raw = form.get("data");
       if (typeof raw !== "string" || raw.length > 20000)
         return error("Invalid request");
@@ -100,16 +118,21 @@ export async function receive(req: Request, kind: "quote" | "tracking") {
         .getAll("files")
         .filter((v): v is File => v instanceof File && v.size > 0);
     } else {
-      const raw = await req.text();
+      const raw = new TextDecoder().decode(bytes);
       if (raw.length > 20000) return error("Request too large", 413);
       data = JSON.parse(raw);
     }
-  } catch {
+  } catch (e) {
+    if (e instanceof BodyTooLarge) return error("Request too large", 413);
     return error("Invalid request");
   }
-  const parsed = (kind === "quote" ? quoteSchema : trackingSchema).safeParse(
-    data,
-  );
+  const parsed = (
+    kind === "quote"
+      ? quoteSchema
+      : kind === "contact"
+        ? contactSchema
+        : trackingSchema
+  ).safeParse(data);
   if (!parsed.success)
     return Response.json(
       {
@@ -124,9 +147,9 @@ export async function receive(req: Request, kind: "quote" | "tracking") {
   const emailHash = createHash("sha256")
     .update(parsed.data.email.toLowerCase())
     .digest("hex");
-  if (!rateLimit(`email:${emailHash}`, 5, 3600))
+  if (!(await rateLimit(`email:${emailHash}`, 5, 3600)))
     return error("Too many requests", 429);
-  const reference = `BLIES-${kind === "quote" ? "Q" : "T"}-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${randomUUID().slice(0, 8).toUpperCase()}`;
+  const reference = `BLIES-${kind === "quote" ? "Q" : kind === "contact" ? "C" : "T"}-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${randomUUID().slice(0, 8).toUpperCase()}`;
   const docs: {
     id: string;
     name: string;
@@ -135,7 +158,13 @@ export async function receive(req: Request, kind: "quote" | "tracking") {
     buffer: Buffer;
   }[] = [];
   for (const f of files) {
-    if (f.size > 10 * 1024 * 1024 || !allowedTypes.includes(f.type))
+    if (
+      f.size >
+        (process.env.BLIES_STORAGE_MODE === "supabase" ? 2 : 10) *
+          1024 *
+          1024 ||
+      !allowedTypes.includes(f.type)
+    )
       return error("Invalid file size or type");
     const buffer = Buffer.from(await f.arrayBuffer());
     const type = fileType(buffer);
@@ -169,48 +198,30 @@ export async function receive(req: Request, kind: "quote" | "tracking") {
   }
   const written: string[] = [];
   try {
-    const dir = path.join(dataDir, "documents");
-    await mkdir(dir, { recursive: true, mode: 0o700 });
+    if (
+      process.env.BLIES_STORAGE_MODE === "supabase" &&
+      docs.reduce((n, d) => n + d.buffer.length, 0) > 2 * 1024 * 1024
+    )
+      return error("Combined files exceed 2 MB", 413);
     for (const doc of docs) {
-      const target = path.join(dir, doc.file);
-      await writeFile(target, doc.buffer, { flag: "wx", mode: 0o600 });
-      written.push(target);
+      await putFile(doc.file, doc.type, doc.buffer);
+      written.push(doc.file);
     }
-    const database = db();
-    database.exec("BEGIN");
-    try {
-      const service =
-        "service" in parsed.data ? parsed.data.service : "tracking";
-      const queue = ["procurement", "equipment"].includes(service)
-        ? "procurement"
-        : service === "integrated"
-          ? "integrated"
-          : "logistics";
-      database
-        .prepare(
-          "INSERT INTO enquiries(id,kind,created,status,queue,email_status,data) VALUES (?,?,?,?,?,?,?)",
-        )
-        .run(
-          reference,
-          kind,
-          new Date().toISOString(),
-          "received",
-          queue,
-          "pending",
-          JSON.stringify(parsed.data),
-        );
-      for (const d of docs)
-        database
-          .prepare("INSERT INTO documents VALUES (?,?,?,?,?)")
-          .run(d.id, reference, d.name, d.type, d.file);
-      audit("public", `${kind}.received`, reference);
-      database.exec("COMMIT");
-    } catch (e) {
-      database.exec("ROLLBACK");
-      throw e;
-    }
+    const service = "service" in parsed.data ? parsed.data.service : kind;
+    const queue = ["procurement", "equipment"].includes(String(service))
+      ? "procurement"
+      : service === "integrated"
+        ? "integrated"
+        : "logistics";
+    await createEnquiry(
+      reference,
+      kind,
+      queue,
+      parsed.data,
+      docs.map((d) => ({ id: d.id, name: d.name, type: d.type, file: d.file })),
+    );
   } catch {
-    await Promise.all(written.map((f) => unlink(f).catch(() => {})));
+    await Promise.all(written.map((f) => removeFile(f).catch(() => {})));
     return error("Storage unavailable", 503);
   }
   const emailStatus = await sendConfirmation(
@@ -218,9 +229,10 @@ export async function receive(req: Request, kind: "quote" | "tracking") {
     parsed.data.locale,
     reference,
   );
-  db()
-    .prepare("UPDATE enquiries SET email_status=? WHERE id=?")
-    .run(emailStatus, reference);
+  // A delivery-state write failure must not turn a committed enquiry into a false submission failure.
+  await setEmailStatus(reference, emailStatus).catch(() =>
+    console.warn("BLIES email state update pending"),
+  );
   return Response.json(
     { reference, received: true, emailStatus },
     { status: 201 },

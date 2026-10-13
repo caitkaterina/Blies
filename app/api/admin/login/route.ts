@@ -4,7 +4,7 @@ import { backendRequest } from "@/lib/backend";
 import { sameOrigin } from "@/lib/security";
 import { cookies } from "next/headers";
 import { authReady, checkLogin, newSession, signSession } from "@/lib/auth";
-import { rateLimit, audit } from "@/lib/store";
+import { rateLimit, audit } from "@/lib/persistence";
 async function postHandler(req: Request) {
   if (!sameOrigin(req))
     return Response.json({ error: "Forbidden" }, { status: 403 });
@@ -15,7 +15,7 @@ async function postHandler(req: Request) {
       { status: 503 },
     );
 
-  if (!rateLimit("admin-login", 5, 300))
+  if (!(await rateLimit("admin-login", 5, 300)))
     return Response.json({ error: "Try again later" }, { status: 429 });
   let data;
   try {
@@ -31,16 +31,16 @@ async function postHandler(req: Request) {
     typeof data.code !== "string" ||
     !checkLogin(data.email, data.password, data.code)
   ) {
-    audit("anonymous", "auth.failed", "admin");
+    await audit("anonymous", "auth.failed", "admin");
     return Response.json({ error: "Invalid credentials" }, { status: 401 });
   }
-  if (!rateLimit(`totp:${data.email}:${data.code}`, 1, 90))
+  if (!(await rateLimit(`totp:${data.email}:${data.code}`, 1, 90)))
     return Response.json(
       { error: "Authenticator code already used" },
       { status: 401 },
     );
   const s = newSession(data.email);
-  audit(s.user, "auth.login", "admin");
+  await audit(s.user, "auth.login", "admin");
   (await cookies()).set("blies_admin", signSession(s), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

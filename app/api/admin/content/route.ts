@@ -2,7 +2,7 @@ import { backendRequest } from "@/lib/backend";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { authorise } from "@/lib/auth";
-import { db, audit } from "@/lib/store";
+import { contentState, saveContent } from "@/lib/persistence";
 const translation = z.object({
   en: z.string().min(1).max(12000),
   fr: z.string().min(1).max(12000),
@@ -80,18 +80,7 @@ const schema = z
 async function getHandler(req: Request) {
   if (!(await authorise(req, ["admin", "editor"])))
     return Response.json({ error: "Forbidden" }, { status: 403 });
-  return Response.json({
-    content: db()
-      .prepare("SELECT * FROM content ORDER BY position,updated DESC")
-      .all()
-      .map((r) => ({ ...r, data: JSON.parse(r.data as string) })),
-    versions: db()
-      .prepare("SELECT * FROM versions ORDER BY created DESC LIMIT 100")
-      .all(),
-    audit: db()
-      .prepare("SELECT * FROM audit ORDER BY created DESC LIMIT 100")
-      .all(),
-  });
+  return Response.json(await contentState());
 }
 async function postHandler(req: Request) {
   const s = await authorise(req, ["admin", "editor"], true);
@@ -118,36 +107,11 @@ async function postHandler(req: Request) {
   if (parsed.data.kind === "fleet" && !parsed.data.slug.startsWith("fleet/"))
     parsed.data.slug = `fleet/${parsed.data.slug}`;
   const v = parsed.data,
-    id = v.id || randomUUID(),
-    now = new Date().toISOString();
-  const d = db();
+    id = v.id || randomUUID();
   try {
-    d.exec("BEGIN");
-    const previous = d.prepare("SELECT * FROM content WHERE id=?").get(id);
-    if (previous)
-      d.prepare("INSERT INTO versions VALUES (?,?,?,?,?)").run(
-        randomUUID(),
-        id,
-        JSON.stringify(previous),
-        s.user,
-        now,
-      );
-    d.prepare(
-      "INSERT INTO content VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET kind=excluded.kind,slug=excluded.slug,status=excluded.status,position=excluded.position,data=excluded.data,updated=excluded.updated",
-    ).run(
-      id,
-      v.kind,
-      v.slug,
-      v.status,
-      v.position,
-      JSON.stringify(v.data),
-      now,
-    );
-    audit(s.user, "content.saved", id);
-    d.exec("COMMIT");
+    await saveContent(s.user, v, id);
     return Response.json({ id });
   } catch {
-    d.exec("ROLLBACK");
     return Response.json(
       { error: "Could not save; check for duplicate slugs" },
       { status: 409 },

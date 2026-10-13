@@ -51,7 +51,8 @@ export const authReady = () =>
   );
 function equal(a: string, b: string) {
   return (
-    a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b))
+    Buffer.byteLength(a) === Buffer.byteLength(b) &&
+    timingSafeEqual(Buffer.from(a), Buffer.from(b))
   );
 }
 function base32(s: string) {

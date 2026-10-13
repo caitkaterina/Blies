@@ -9,6 +9,8 @@ export const dataDir = process.env.BLIES_DATA_DIR || "/workspace/blies-private";
 let instance: DatabaseSync | undefined;
 export function db() {
   requirePersistence();
+  if (process.env.BLIES_STORAGE_MODE === "supabase")
+    throw new StorageUnavailable();
   if (!instance) {
     let connection: DatabaseSync | undefined;
     try {

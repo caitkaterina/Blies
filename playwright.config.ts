@@ -62,6 +62,7 @@ export default defineConfig({
       env: {
         BLIES_DATA_DIR: process.env.BLIES_TEST_DATA,
         BLIES_SITE_URL: "http://localhost:3001",
+        BLIES_PUBLIC_ORIGINS: "https://frontend.example",
         NODE_EXTRA_CA_CERTS: cert,
         BLIES_SCAN_URL: "https://localhost:3002/scan",
         BLIES_SCAN_KEY: process.env.BLIES_TEST_SCAN_KEY,

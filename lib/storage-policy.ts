@@ -3,6 +3,8 @@
 export function persistentStorageEnabled(
   env: Record<string, string | undefined> = process.env,
 ) {
+  if (env.BLIES_STORAGE_MODE === "supabase")
+    return !!(env.BLIES_SUPABASE_URL && env.BLIES_SUPABASE_SERVICE_ROLE_KEY);
   return (
     env.VERCEL !== "1" &&
     !env.VERCEL_ENV &&
