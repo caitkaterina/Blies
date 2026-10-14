@@ -51,3 +51,7 @@ Marketing pages can run without the local SQLite adapter. Set `BLIES_STORAGE_MOD
 ## Managed backend preparation
 
 The optional Supabase adapter, private Storage integration and version-controlled migration are documented in [Supabase activation and validation](docs/supabase.md). Use `BLIES_STORAGE_MODE=supabase` only after staging configuration and migration review; SQLite development and Vercel's fail-closed disabled mode remain available. No production project is connected automatically.
+
+## Integrated Figma frontend and customer backend
+
+`caitkaterina/BliesWebsite` is the approved public frontend. This Next.js repository provides APIs and staff administration; its historical marketing pages do not replace the Figma design. Review [FINAL_IMPLEMENTATION_REPORT.md](docs/FINAL_IMPLEMENTATION_REPORT.md), [VERCEL_DEPLOYMENT_GUIDE.md](docs/VERCEL_DEPLOYMENT_GUIDE.md), and [SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md) before staging activation. Customer/provider code is not proof of live configuration.

@@ -1,3 +1,7 @@
+# Historical marketing-only deployment notes
+
+The current integrated deployment instructions are in [VERCEL_DEPLOYMENT_GUIDE.md](VERCEL_DEPLOYMENT_GUIDE.md). The notes below apply to the earlier SQLite/disabled marketing-only implementation; keep disabled mode until approved staging prerequisites are validated.
+
 # Vercel marketing deployment and persistent backend boundary
 
 ## Why the homepage failed
