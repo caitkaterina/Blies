@@ -7,10 +7,10 @@ import {
   published as sqlitePublished,
 } from "./store";
 import { rpc, supabaseRequest } from "./supabase-http";
+import { enqueueLocal } from "./delivery-store";
+import { createHash } from "node:crypto";
 import type { ContentData } from "./cms-types";
-// Database rows are narrowed by the validated route contracts.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type Row = Record<string, any>;
+export type Row = Record<string, unknown>;
 export type DocumentRow = {
   id: string;
   name: string;
@@ -41,6 +41,7 @@ export async function createEnquiry(
   queue: string,
   data: unknown,
   docs: DocumentRow[],
+  customerId: string | null = null,
 ) {
   if (remote()) {
     await rpc("blies_create_enquiry", {
@@ -49,6 +50,7 @@ export async function createEnquiry(
       p_queue: queue,
       p_data: data,
       p_documents: docs,
+      p_customer_id: customerId,
     });
     return;
   }
@@ -56,7 +58,7 @@ export async function createEnquiry(
   d.exec("BEGIN");
   try {
     d.prepare(
-      "INSERT INTO enquiries(id,kind,created,status,queue,email_status,data) VALUES (?,?,?,?,?,?,?)",
+      "INSERT INTO enquiries(id,kind,created,status,queue,email_status,data,customer_id) VALUES (?,?,?,?,?,?,?,?)",
     ).run(
       id,
       kind,
@@ -65,6 +67,7 @@ export async function createEnquiry(
       queue,
       "pending",
       JSON.stringify(data),
+      customerId,
     );
     for (const doc of docs)
       d.prepare("INSERT INTO documents VALUES (?,?,?,?,?)").run(
@@ -109,7 +112,9 @@ export async function records(): Promise<Row[]> {
         .map((d) => ({ ...d })),
     }));
 }
-export async function record(id: string): Promise<Row | undefined> {
+export async function record(
+  id: string,
+): Promise<(Row & { data: Record<string, unknown> }) | undefined> {
   if (remote())
     return (
       await (
@@ -124,6 +129,7 @@ export async function record(id: string): Promise<Row | undefined> {
 export async function updateRecord(
   actor: string,
   v: { id: string; status: string; assigned: string; reply: string },
+  notifyReply = false,
 ) {
   if (remote()) {
     await rpc("blies_update_record", {
@@ -132,12 +138,38 @@ export async function updateRecord(
       p_status: v.status,
       p_assigned: v.assigned,
       p_reply: v.reply,
+      p_notify_reply: notifyReply,
     });
     return;
   }
   const d = db();
   d.exec("BEGIN");
   try {
+    const previous = d
+      .prepare("SELECT status,data FROM enquiries WHERE id=?")
+      .get(v.id);
+    if (!previous) throw Error("Record not found");
+    const data = JSON.parse(String(previous.data));
+    if (previous.status !== v.status)
+      enqueueLocal(
+        d,
+        `status:${randomUUID()}`,
+        data.email,
+        data.locale,
+        "BLIES — Request status update",
+        `Your request ${v.id} is now ${v.status}.`,
+        v.id,
+      );
+    if (notifyReply)
+      enqueueLocal(
+        d,
+        `reply:${v.id}:${createHash("sha256").update(v.reply).digest("hex")}`,
+        data.email,
+        data.locale,
+        "BLIES — Response to your request",
+        v.reply,
+        v.id,
+      );
     d.prepare(
       "UPDATE enquiries SET status=?,assigned=?,reply=? WHERE id=?",
     ).run(v.status, v.assigned, v.reply, v.id);
@@ -192,7 +224,17 @@ export async function contentState(): Promise<{
       .map((r) => ({ ...r })),
   };
 }
-export async function saveContent(actor: string, v: Row, id: string) {
+export async function saveContent(
+  actor: string,
+  v: {
+    kind: string;
+    slug: string;
+    status: string;
+    position: number;
+    data: ContentData;
+  },
+  id: string,
+) {
   if (remote()) {
     await rpc("blies_save_content", {
       p_actor: actor,

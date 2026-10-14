@@ -78,9 +78,13 @@ const schema = z
       });
   });
 async function getHandler(req: Request) {
-  if (!(await authorise(req, ["admin", "editor"])))
-    return Response.json({ error: "Forbidden" }, { status: 403 });
-  return Response.json(await contentState());
+  const staff = await authorise(req, ["admin", "editor"]);
+  if (!staff) return Response.json({ error: "Forbidden" }, { status: 403 });
+  const state = await contentState();
+  return Response.json({
+    ...state,
+    audit: staff.role === "admin" ? state.audit : [],
+  });
 }
 async function postHandler(req: Request) {
   const s = await authorise(req, ["admin", "editor"], true);

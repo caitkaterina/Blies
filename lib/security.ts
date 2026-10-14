@@ -30,7 +30,10 @@ export function publicCors(req: Request, response: Response) {
       req.headers.get("origin")!,
     );
     response.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    response.headers.set("Access-Control-Allow-Headers", "Content-Type");
+    response.headers.set(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Idempotency-Key, X-BLIES-CSRF",
+    );
   }
   return response;
 }

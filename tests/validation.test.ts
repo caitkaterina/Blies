@@ -106,3 +106,15 @@ test("ships and aircraft ownership restrictions retained across languages", () =
   assert.match(sea.intro.fr, /ne possède pas/);
   assert.match(air.intro.ar, /لا تمتلك/);
 });
+
+test("calendar dates and telephone content are validated beyond length", () => {
+  const year = new Date().getUTCFullYear() + 2;
+  assert.equal(
+    quoteSchema.safeParse({ ...base, date: `${year}-02-31` }).success,
+    false,
+  );
+  assert.equal(
+    quoteSchema.safeParse({ ...base, phone: "++++---" }).success,
+    false,
+  );
+});

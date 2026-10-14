@@ -1,15 +1,10 @@
 import { backendRequest } from "@/lib/backend";
+import { scheduleOutbox } from "@/lib/outbox-scheduler";
+export const maxDuration = 60;
+import { retryConfirmation } from "@/lib/delivery-store";
 import { z } from "zod";
 import { authorise } from "@/lib/auth";
-import {
-  records,
-  record,
-  updateRecord,
-  setEmailStatus,
-  audit,
-} from "@/lib/persistence";
-import { sendConfirmation, sendReply } from "@/lib/enquiries";
-import { type Locale } from "@/lib/i18n";
+import { records, record, updateRecord } from "@/lib/persistence";
 async function getHandler(req: Request) {
   if (!(await authorise(req, ["admin", "sales"])))
     return Response.json({ error: "Forbidden" }, { status: 403 });
@@ -41,43 +36,32 @@ async function postHandler(req: Request) {
   const v = parsed.data;
   const row = await record(v.id);
   if (!row) return Response.json({ error: "Not found" }, { status: 404 });
-  if (v.sendReply) {
-    if (!v.reply.trim())
-      return Response.json(
-        { error: "Enter a response first" },
-        { status: 422 },
-      );
-    const data = row.data;
-    const result = await sendReply(
-      data.email,
-      data.locale as Locale,
-      v.id,
-      v.reply,
-    );
-    if (result !== "sent")
+  if (v.sendReply && !v.reply.trim())
+    return Response.json({ error: "Enter a response first" }, { status: 422 });
+  if (v.sendReply) v.status = "responded";
+  await updateRecord(s.user, v, !!v.sendReply);
+  scheduleOutbox();
+  if (v.retryEmail) {
+    const retry = await retryConfirmation(v.id, row.data);
+    if (retry === "expired")
       return Response.json(
         {
           error:
-            result === "not-configured"
-              ? "Email delivery is not configured"
-              : "Email delivery is pending; retry with the same response",
+            "Delivery retry window expired. Review the provider outcome before resending.",
         },
-        { status: 503 },
+        { status: 409 },
       );
-    v.status = "responded";
-    await audit(s.user, "enquiry.response-sent", v.id);
+    if (retry === "sent")
+      return Response.json({ ok: true, notificationStatus: "sent" });
   }
-  await updateRecord(s.user, v);
-  if (v.retryEmail) {
-    const data = row.data;
-    const result = await sendConfirmation(
-      data.email,
-      data.locale as Locale,
-      v.id,
-    );
-    await setEmailStatus(v.id, result);
-  }
-  return Response.json({ ok: true });
+  // Delivery runs independently; a queued notification is not a sent message.
+  return Response.json({
+    ok: true,
+    notificationStatus:
+      process.env.BLIES_EMAIL_API_KEY && process.env.BLIES_EMAIL_FROM
+        ? "pending"
+        : "not-configured",
+  });
 }
 
 export async function GET(request: Request) {

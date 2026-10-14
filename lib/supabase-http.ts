@@ -1,4 +1,11 @@
 import { StorageUnavailable } from "./storage-policy.ts";
+export class SupabaseDatabaseError extends StorageUnavailable {
+  readonly code: string;
+  constructor(code: string) {
+    super();
+    this.code = code;
+  }
+}
 export async function supabaseRequest(path: string, init: RequestInit = {}) {
   const url = process.env.BLIES_SUPABASE_URL;
   const key = process.env.BLIES_SUPABASE_SERVICE_ROLE_KEY;
@@ -16,9 +23,18 @@ export async function supabaseRequest(path: string, init: RequestInit = {}) {
       cache: "no-store",
       signal: AbortSignal.timeout(15000),
     });
-    if (!response.ok) throw new StorageUnavailable();
+    if (!response.ok) {
+      const code = await response
+        .json()
+        .then((body) => (typeof body.code === "string" ? body.code : ""))
+        .catch(() => "");
+      if (["23505", "23503", "P0002"].includes(code))
+        throw new SupabaseDatabaseError(code);
+      throw new StorageUnavailable();
+    }
     return response;
-  } catch {
+  } catch (error) {
+    if (error instanceof SupabaseDatabaseError) throw error;
     throw new StorageUnavailable();
   }
 }

@@ -17,9 +17,37 @@ test("filesystem initialization failure returns sanitized 503, never a fake reco
   request,
 }) => {
   for (const route of ["/api/quotes", "/api/tracking"]) {
+    const common = {
+      locale: "en",
+      company: "Test company",
+      name: "Test person",
+      email: "storage-failure@example.test",
+      phone: "+27123456789",
+      consent: true,
+    };
+    const options =
+      route === "/api/quotes"
+        ? {
+            multipart: {
+              data: JSON.stringify({
+                ...common,
+                service: "road",
+                originCountry: "South Africa",
+                originCity: "Johannesburg",
+                destinationCountry: "Gabon",
+                destinationCity: "Libreville",
+                cargo: "Test cargo",
+                quantity: 1,
+                unit: "pallet",
+                date: "",
+                urgency: "Standard",
+              }),
+            },
+          }
+        : { data: { ...common, shipment: "TEST-STORAGE-FAILURE" } };
     const r = await request.post(route, {
       headers: { Origin: "http://localhost:3005" },
-      data: {},
+      ...options,
     });
     expect(r.status()).toBe(503);
     const body = await r.json();

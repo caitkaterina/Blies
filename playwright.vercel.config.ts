@@ -2,6 +2,7 @@ import { defineConfig } from "@playwright/test";
 import { randomBytes, scryptSync } from "node:crypto";
 const secret = randomBytes(32).toString("hex");
 export default defineConfig({
+  outputDir: "test-results/vercel",
   testDir: "./tests/vercel",
   workers: 1,
   reporter: "list",

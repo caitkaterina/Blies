@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 process.env.BLIES_TEST_PASSWORD ||= randomBytes(24).toString("hex");
 process.env.BLIES_TEST_TOTP ||= "JBSWY3DPEHPK3PXP";
 process.env.BLIES_TEST_DATA ||= `/tmp/blies-tests-${randomBytes(8).toString("hex")}`;
+process.env.BLIES_TEST_SESSION_SECRET ||= randomBytes(32).toString("hex");
 process.env.BLIES_TEST_SCAN_KEY ||= randomBytes(24).toString("hex");
 mkdirSync(process.env.BLIES_TEST_DATA, { recursive: true, mode: 0o700 });
 const cert = `${process.env.BLIES_TEST_DATA}/scanner.crt`,
@@ -32,6 +33,7 @@ if (!existsSync(cert))
     { stdio: "ignore" },
   );
 export default defineConfig({
+  outputDir: "test-results/browser",
   testDir: "./tests/browser",
   workers: 2,
   reporter: "list",
@@ -70,14 +72,20 @@ export default defineConfig({
         BLIES_ADMIN_PASSWORD_HASH: `scrypt:test-only-salt:${scryptSync(process.env.BLIES_TEST_PASSWORD, "test-only-salt", 64).toString("hex")}`,
         BLIES_ADMIN_TOTP_SECRET: process.env.BLIES_TEST_TOTP,
         BLIES_STAFF_ACCOUNTS_JSON: JSON.stringify(
-          ["editor", "sales"].map((role) => ({
+          [
+            "editor",
+            "sales",
+            "workflow-admin",
+            "workflow-sales",
+            "workflow-editor",
+          ].map((role) => ({
             email: `${role}@example.test`,
-            role,
+            role: role.replace("workflow-", ""),
             passwordHash: `scrypt:test-only-salt:${scryptSync(process.env.BLIES_TEST_PASSWORD!, "test-only-salt", 64).toString("hex")}`,
             totpSecret: process.env.BLIES_TEST_TOTP,
           })),
         ),
-        BLIES_SESSION_SECRET: randomBytes(32).toString("hex"),
+        BLIES_SESSION_SECRET: process.env.BLIES_TEST_SESSION_SECRET,
       },
     },
   ],

@@ -50,7 +50,8 @@ export const quoteSchema = z
       .trim()
       .min(6)
       .max(40)
-      .regex(/^[+\d\s().-]+$/),
+      .regex(/^[+\d\s().-]+$/)
+      .refine((v) => v.replace(/\D/g, "").length >= 6),
     notes: optional,
     consent: z.literal(true),
     website: z.string().max(0).default(""),
@@ -65,6 +66,7 @@ export const quoteSchema = z
     if (
       v.date &&
       (Number.isNaN(Date.parse(v.date)) ||
+        new Date(v.date).toISOString().slice(0, 10) !== v.date ||
         v.date < new Date().toISOString().slice(0, 10))
     )
       c.addIssue({
@@ -79,7 +81,13 @@ export const trackingSchema = z.object({
   company: text,
   name: text,
   email: z.email().max(254),
-  phone: z.string().trim().min(6).max(40),
+  phone: z
+    .string()
+    .trim()
+    .min(6)
+    .max(40)
+    .regex(/^[+\d\s().-]+$/)
+    .refine((v) => v.replace(/\D/g, "").length >= 6),
   notes: optional,
   consent: z.literal(true),
   website: z.string().max(0).default(""),

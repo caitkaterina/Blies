@@ -5,6 +5,7 @@ const server = Array.isArray(base.webServer)
   : base.webServer!;
 export default defineConfig({
   ...base,
+  outputDir: "test-results/storage-failure",
   testDir: "./tests/storage-failure",
   use: { ...base.use, baseURL: "http://localhost:3005" },
   webServer: {
