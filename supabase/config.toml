@@ -1,0 +1,19 @@
+# Preparation only. Committing this file does not enable GitHub integration.
+# Review docs/SUPABASE_GITHUB_PREPARATION.md before enabling automatic branching.
+# This is a local project identifier, not a hosted project reference or link.
+project_id = "blies-backend"
+
+[db.migrations]
+enabled = true
+# Use the three versioned SQL migrations; no declarative schema generation.
+schema_paths = []
+
+[db.seed]
+# Never populate automatic preview branches with customer data or test accounts.
+enabled = false
+sql_paths = []
+
+# No [remotes.*] mapping: rwbzxycugebkleictweh is not independently verified.
+# No Auth, SMTP, API-schema, Edge Function or Storage-bucket overrides are declared.
+# Hosted branches inherit base-project configuration; inspect effective settings.
+# The private bucket is created by the first migration, not duplicated here.

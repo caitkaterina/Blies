@@ -1,0 +1,4 @@
+# Local linking/cache state and secrets must never enter the GitHub integration.
+.temp/
+.branches/
+.env*

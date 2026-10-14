@@ -106,13 +106,14 @@ There is no automatic down migration. Do not drop populated tables or buckets to
 
 ## CLI execution after approved inspection
 
-This checkout contains migrations but no linked Supabase CLI project. On a trusted operator machine, install the official Supabase CLI, authenticate securely, and only after independently confirming staging run from the backend repository:
+The preparation branch adds `supabase/config.toml`; no hosted project is linked. Review [SUPABASE_GITHUB_PREPARATION.md](SUPABASE_GITHUB_PREPARATION.md) before connecting GitHub: automatic preview branching can apply migrations even with production deployment disabled. Keep both disabled during preparation.
+
+On a trusted operator machine, install the official Supabase CLI, authenticate securely, and only after independently confirming staging and approving the tooling phase run from the backend repository:
 
 ```sh
-supabase init
 supabase link --project-ref rwbzxycugebkleictweh
 supabase migration list
 supabase db push --dry-run
 ```
 
-`init` creates local tooling configuration; review it before committing. A successful dry run is not permission to apply. Compare migration history and SQL, confirm database and object backups, then apply only after the approved staging plan using `supabase db push`. Do not place CLI access tokens/database passwords in source or chat. Do not use `migration repair` to bypass unknown history or conflicts. If using SQL Editor instead, record the executed versions through the reviewed migration workflow rather than pretending an Editor run automatically maintains CLI history. These commands have not been executed against the nominated project.
+Do not rerun `init` over the prepared configuration. A successful dry run is not permission to apply. Compare migration history and SQL, confirm database and object backups, then apply only after the approved staging plan using `supabase db push`. Choose one reviewed executor for a target: do not concurrently use GitHub automation and manual CLI pushes. Do not place CLI access tokens/database passwords in source or chat. Do not use `migration repair` to bypass unknown history or conflicts. If using SQL Editor instead, record the executed versions through the reviewed migration workflow rather than pretending an Editor run automatically maintains CLI history. These commands have not been executed against the nominated project.
